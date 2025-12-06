@@ -9,9 +9,21 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@radix-ui/react-accordion": "^1.2.12",
+    "chart.js": "^4.5.1",
+    "clsx": "^2.1.1",
+    "country-state-city": "^3.2.1",
+    "framer-motion": "^12.23.24",
     "next": "16.0.5",
+    "next-themes": "^0.4.6",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-chartjs-2": "^5.3.1",
+    "react-datepicker": "^8.10.0",
+    "react-dom": "19.2.0",
+    "react-icons": "^5.5.0",
+    "react-select": "^5.10.2",
+    "recharts": "^3.5.1",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
