@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
-    "better-sqlite3": "^12.5.0",
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "country-state-city": "^3.2.1",
@@ -30,7 +29,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -1,4 +1,3 @@
-// app/orders/page.tsx
 import Link from "next/link";
 import { OrdersApiResponse } from "@/lib/types/carbon-emission";
 import { getBaseUrl } from "@/lib/utils";

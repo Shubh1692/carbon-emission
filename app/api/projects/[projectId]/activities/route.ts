@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/sqlite";
 import { getProjectById } from "@/lib/projectsStore";
+import { getLatestEstimateBatch } from "@/lib/carbonStore";
 
 export const runtime = "nodejs";
 
@@ -13,14 +13,7 @@ export async function GET(
   const project = getProjectById(projectId);
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const latestBatch = db
-    .prepare(
-      `SELECT id, createdAt, activities FROM project_estimate_batches
-       WHERE projectId = ?
-       ORDER BY datetime(createdAt) DESC
-       LIMIT 1`
-    )
-    .get(projectId) as { id: string; createdAt: string, activities: string } | undefined;
+  const latestBatch = getLatestEstimateBatch(projectId);
 
   if (!latestBatch) {
     return NextResponse.json({ projectId, batchId: null, activities: [] });

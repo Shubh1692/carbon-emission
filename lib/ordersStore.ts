@@ -1,88 +1,132 @@
-import { db } from "./sqlite";
-import { Order, OrderRes, QuoteRes, RetirementOrderPayload } from "@/lib/types/carbon-emission";
+import {
+    Order,
+    OrderRes,
+    QuoteRes,
+    RetirementOrderPayload,
+} from "@/lib/types/carbon-emission";
 
-export function createOrder(body: RetirementOrderPayload, quote: QuoteRes, order: OrderRes) {
+type OrdersMemory = {
+    byQuoteUuid: Map<string, Order>;
+    seq: number;
+};
+
+declare global {
+
+    var __ordersMemory: OrdersMemory | undefined;
+}
+
+
+function store(): OrdersMemory {
+    if (!globalThis.__ordersMemory) {
+        globalThis.__ordersMemory = { byQuoteUuid: new Map(), seq: 0 };
+    }
+    return globalThis.__ordersMemory;
+}
+
+function nextId(): number {
+    const s = store();
+    s.seq += 1;
+    return s.seq;
+}
+
+/**
+ * Very small WHERE parser to keep your existing getOrders(...) calls working.
+ * Supports "field = ?" joined by AND for common fields.
+ */
+function filterByWhereSql(rows: Order[], whereSql: string, params: string[]) {
+    if (!whereSql?.trim() || params.length === 0) return rows;
+
+    const sql = whereSql.toLowerCase();
+    const matches: Array<{ field: keyof Order }> = [];
+
+    const patterns: Array<[RegExp, keyof Order]> = [
+        [/project_id\s*=\s*\?/g, "project_id"],
+        [/quote_uuid\s*=\s*\?/g, "quote_uuid"],
+        [/status\s*=\s*\?/g, "status"],
+        [/asset_price_source_id\s*=\s*\?/g, "asset_price_source_id"],
+    ];
+
+
+    const found: Array<{ idx: number; field: keyof Order }> = [];
+    for (const [re, field] of patterns) {
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(sql))) found.push({ idx: m.index, field });
+    }
+    found.sort((a, b) => a.idx - b.idx);
+    for (const f of found) matches.push({ field: f.field });
+
+    if (matches.length === 0) return rows;
+
+    return rows.filter((r) => {
+        let ok = true;
+        for (let i = 0; i < matches.length; i++) {
+            const field = matches[i].field;
+            const expected = params[i];
+            if ((r[field] ?? null) != expected) ok = false;
+        }
+        return ok;
+    });
+}
+
+export function createOrder(
+    body: RetirementOrderPayload,
+    quote: QuoteRes,
+    order: OrderRes
+) {
+    const s = store();
     const now = new Date().toISOString();
-   const stmt = db.prepare(`
-  INSERT INTO retirement_orders (
-    project_id, 
-    asset_price_source_id,
-    quote_uuid,
-    quantity_tonnes,
-    raw_quote_json,
-    raw_order_json,
-    status,
-    beneficiary_name,
-    retirement_message,
-    polygonscan_url,
-    view_retirement_url,
-    unit_price,
-    total_cost,
-    created_at,
-    updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(quote_uuid) DO UPDATE SET
-    project_id = excluded.project_id,
-    asset_price_source_id = excluded.asset_price_source_id,
-    quantity_tonnes = excluded.quantity_tonnes,
-    raw_quote_json = excluded.raw_quote_json,
-    raw_order_json = excluded.raw_order_json,
-    status = excluded.status,
-    beneficiary_name = excluded.beneficiary_name,
-    retirement_message = excluded.retirement_message,
-    polygonscan_url = COALESCE(excluded.polygonscan_url, retirement_orders.polygonscan_url),
-    view_retirement_url = COALESCE(excluded.view_retirement_url, retirement_orders.view_retirement_url),
-    unit_price = excluded.unit_price,
-    total_cost = excluded.total_cost,
-    updated_at = excluded.updated_at
-`);
 
-    stmt.run(
-        body.projectKey ?? null,
-        body.sourceId ?? null,
-        quote.uuid ?? null,
-        body.tonnes ?? null,
-        JSON.stringify(quote),
-        JSON.stringify(order),
-        order.status ?? "PENDING",
-        body.beneficiaryName ?? null,
-        body.publicMessage ?? null,
-        order.polygonscan_url ?? null,
-        order.view_retirement_url ?? null,
-        body.unitPrice ?? null,
-        body.totalCost ?? null,
-        now,
-        now
-    );
+    const quoteUuid = (quote?.uuid ?? null) as string | null;
+    if (!quoteUuid) return;
+
+    const existing = s.byQuoteUuid.get(quoteUuid);
+
+    const row: Order = {
+        id: existing?.id ?? nextId(),
+        project_id: body.projectKey ?? null,
+        asset_price_source_id: body.sourceId ?? null,
+        quote_uuid: quoteUuid,
+        quantity_tonnes: body.tonnes ?? null,
+        raw_quote_json: quote as QuoteRes,
+        raw_order_json: order as OrderRes,
+        status: (order?.status ?? "PENDING") as string,
+        beneficiary_name: body.beneficiaryName ?? null,
+        retirement_message: body.publicMessage ?? null,
+        polygonscan_url: order?.polygonscan_url ?? null,
+        view_retirement_url: order?.view_retirement_url ?? null,
+        unit_price: String((body as RetirementOrderPayload).unitPrice ?? 0),
+        total_cost: String((body as RetirementOrderPayload).totalCost ?? 0),
+        created_at: existing?.created_at ?? now,
+        updated_at: now,
+    };
+
+    s.byQuoteUuid.set(quoteUuid, row);
 }
 
 export function updateOrderStatus(quote: QuoteRes, latestOrder: OrderRes) {
+    const s = store();
     const now = new Date().toISOString();
-    db.prepare(`
-               UPDATE retirement_orders
-               SET
-                   status = ?,
-                   polygonscan_url = COALESCE(?, polygonscan_url),
-                   view_retirement_url = COALESCE(?, view_retirement_url),
-                   raw_order_json = ?,
-                   updated_at = ?
-               WHERE quote_uuid = ?
-           `).run(
-        latestOrder.status ?? "UNKNOWN",
-        latestOrder.polygonscan_url ?? null,
-        latestOrder.view_retirement_url ?? null,
-        JSON.stringify(latestOrder),
-        now,
-        latestOrder.quote.uuid ?? quote.uuid
-    );
-}
-function safeJsonParse<T = any>(value: string | null): T | null {
-    if (!value) return null;
-    try {
-        return JSON.parse(value) as T;
-    } catch {
-        return null;
-    }
+
+    const q =
+        (latestOrder as OrderRes)?.quote?.uuid ??
+        quote?.uuid;
+
+    if (!q) return;
+
+    const existing = s.byQuoteUuid.get(q);
+    if (!existing) return;
+
+    const updated: Order = {
+        ...existing,
+        status: (latestOrder?.status ?? "UNKNOWN") as string,
+        polygonscan_url: latestOrder?.polygonscan_url ?? existing.polygonscan_url,
+        view_retirement_url:
+            latestOrder?.view_retirement_url ?? existing.view_retirement_url,
+        raw_order_json: latestOrder as OrderRes,
+        updated_at: now,
+    };
+
+    s.byQuoteUuid.set(q, updated);
 }
 
 export async function getOrders(
@@ -91,43 +135,29 @@ export async function getOrders(
     limit: number = 50,
     offset: number = 0
 ) {
-    const totalRow = db
-        .prepare(`SELECT COUNT(*) as total FROM retirement_orders ${whereSql}`)
-        .get(...params) as { total: number };
+    const s = store();
 
-    const rows = db
-        .prepare(
-            `
-      SELECT
-        id,
-        project_id,
-        asset_price_source_id,
-        quote_uuid,
-        status,
-        quantity_tonnes,
-        beneficiary_name,
-        retirement_message,
-        polygonscan_url,
-        view_retirement_url,
-        raw_quote_json,
-        raw_order_json,
-        unit_price,
-        total_cost,
-        created_at,
-        updated_at
-      FROM retirement_orders
-      ${whereSql}
-      ORDER BY datetime(created_at) DESC
-      LIMIT ? OFFSET ?
-    `
-        )
-        .all(...params, limit, offset) as Order[];
+    let rows = Array.from(s.byQuoteUuid.values());
 
-    const parsedRows = rows.map((r) => ({
-        ...r,
-        raw_quote_json: safeJsonParse(r.raw_quote_json as unknown as string),
-        raw_order_json: safeJsonParse(r.raw_order_json as unknown as string),
-    }));
+    rows = filterByWhereSql(rows, whereSql, params);
+    rows.sort(
+        (a, b) => new Date(b.created_at as string).getTime() - new Date(a.created_at as string).getTime()
+    );
 
-    return { totalRow, rows: parsedRows };
+    const totalRow = { total: rows.length };
+    const paged = rows.slice(offset, offset + limit);
+
+    return { totalRow, rows: paged };
+}
+
+
+export function deleteOrderByQuoteUuid(quoteUuid: string): boolean {
+    return store().byQuoteUuid.delete(quoteUuid);
+}
+
+
+export function deleteAllOrders(): void {
+    const s = store();
+    s.byQuoteUuid.clear();
+    s.seq = 0;
 }

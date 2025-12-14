@@ -401,7 +401,7 @@ export default function CarbonForm({
 
   const goBuyCredits = () => {
     if (!carbonForm.submittedBatchId) return;
-    router.push("/credits"); // ✅ keep consistent with your global nav
+    router.push("/credits");
   };
 
   return (

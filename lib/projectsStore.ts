@@ -1,15 +1,31 @@
-import { db } from "./sqlite";
 import { Project } from "./types/project";
 
+type ProjectsMemory = { map: Map<string, Project> };
+
+declare global {
+  var __projectsMemory: ProjectsMemory | undefined;
+}
+
+function store(): ProjectsMemory {
+  if (!globalThis.__projectsMemory) {
+    globalThis.__projectsMemory = { map: new Map() };
+  }
+  return globalThis.__projectsMemory;
+}
+
 export function listProjects(): Project[] {
-  return db
-    .prepare<Project[]>(`SELECT * FROM projects ORDER BY datetime(updatedAt) DESC`)
-    .all() as unknown as Project[];
+  const s = store();
+  const rows = Array.from(s.map.values());
+
+  rows.sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+
+  return rows;
 }
 
 export function getProjectById(id: string): Project | null {
-  const row = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(id);
-  return (row as Project) ?? null;
+  return store().map.get(id) ?? null;
 }
 
 export function createProject(input: { name: string; description?: string }): Project {
@@ -23,11 +39,7 @@ export function createProject(input: { name: string; description?: string }): Pr
     updatedAt: now,
   };
 
-  db.prepare(
-    `INSERT INTO projects (id, name, description, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(p.id, p.name, p.description ?? "", p.createdAt, p.updatedAt);
-
+  store().map.set(p.id, p);
   return p;
 }
 
@@ -35,24 +47,30 @@ export function updateProject(
   id: string,
   input: { name?: string; description?: string }
 ): Project | null {
-  const existing = getProjectById(id);
+  const s = store();
+  const existing = s.map.get(id);
   if (!existing) return null;
 
   const now = new Date().toISOString();
-  const name = input.name !== undefined ? input.name.trim() : existing.name;
-  const description =
-    input.description !== undefined ? input.description.trim() : existing.description ?? "";
 
-  db.prepare(
-    `UPDATE projects
-     SET name = ?, description = ?, updatedAt = ?
-     WHERE id = ?`
-  ).run(name, description, now, id);
+  const updated: Project = {
+    ...existing,
+    name: input.name !== undefined ? input.name.trim() : existing.name,
+    description:
+      input.description !== undefined
+        ? input.description.trim()
+        : (existing.description ?? ""),
+    updatedAt: now,
+  };
 
-  return getProjectById(id);
+  s.map.set(id, updated);
+  return updated;
 }
 
 export function deleteProject(id: string): boolean {
-  const info = db.prepare(`DELETE FROM projects WHERE id = ?`).run(id);
-  return info.changes > 0;
+  return store().map.delete(id);
+}
+
+export function deleteAllProjects(): void {
+  store().map.clear();
 }

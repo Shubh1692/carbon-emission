@@ -286,7 +286,6 @@ export default function CarbonProjectDetails({ project }: Props) {
       document.body.style.overflow = prevOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retireOpen]);
 
   const heroImg = getPrimaryImage(project);

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/sqlite";
 import { carbonmarkFetch } from "@/lib/carbonmark";
 import { OrderRes, QuoteRes, RetirementOrderPayload, } from "@/lib/types/carbon-emission";
 import { createOrder, updateOrderStatus, getOrders } from "@/lib/ordersStore";
@@ -62,12 +61,12 @@ export async function GET(req: Request) {
         const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
         const { totalRow, rows } = await getOrders(whereSql, params, limit, offset);
         for (let rowKey in rows) {
-            if (rows[rowKey].status === 'COMPLETED') {
-                const confirmRes = await carbonmarkFetch<{ data: OrderRes[] }>(`/orders?quote_uuid=${encodeURIComponent(rows[rowKey].raw_quote_json.uuid)}`, {
+            if (rows[rowKey].status !== 'COMPLETED') {
+                const confirmRes = await carbonmarkFetch<{ data: OrderRes[] }>(`/orders?quote_uuid=${encodeURIComponent(rows[rowKey].raw_quote_json?.uuid as string)}`, {
                     method: "GET",
                 });
                 const latest = Array.isArray(confirmRes) ? confirmRes[0] : confirmRes?.data?.[0] ?? confirmRes;
-                await updateOrderStatus(rows[rowKey].raw_quote_json, latest);
+                await updateOrderStatus(rows[rowKey].raw_quote_json as QuoteRes, latest);
                 rows[rowKey].raw_order_json = latest;
                 rows[rowKey].status = latest.status;
                 rows[rowKey].polygonscan_url = latest.polygonscan_url;

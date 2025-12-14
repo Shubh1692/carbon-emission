@@ -103,7 +103,6 @@ export default function CarbonAnalyticsPage({ activities }: Props) {
 
   if (!activities?.length) return null;
 
-  // Theme helpers for Chart.js
   const chartText = isDark ? "rgba(229,231,235,0.92)" : "rgba(17,24,39,0.92)";
   const chartMuted = isDark ? "rgba(148,163,184,0.95)" : "rgba(107,114,128,0.95)";
   const chartGrid = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)";
@@ -186,7 +185,10 @@ export default function CarbonAnalyticsPage({ activities }: Props) {
               intensity: number;
               unitLabel: string;
               name: string;
-            }> = (ctx.raw as any) || {};
+            }> = (ctx.raw as {
+              x: number;
+              y: number;
+            }) || {};
             const x = Number(raw.x ?? 0);
             const y = Number(raw.y ?? 0);
             const intensity = Number.isFinite(raw.intensity) && raw.intensity != null ? raw.intensity : null;
