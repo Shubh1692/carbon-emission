@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { OrdersApiResponse } from "@/lib/types/carbon-emission";
 import { getBaseUrl } from "@/lib/utils";
+import Loading from "@/components/common/loading";
+import { Suspense } from "react";
 
 type SP = { page?: string; limit?: string; projectKey?: string };
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
@@ -21,7 +23,7 @@ function buildHref(page: number, limit: number, projectKey: string) {
   return `/orders?${sp.toString()}`;
 }
 
-export default async function OrdersPage({
+async function OrdersPage({
   searchParams,
 }: {
   searchParams: Promise<SP> | SP;
@@ -307,3 +309,20 @@ export default async function OrdersPage({
     </div>
   );
 }
+
+
+
+export default async function ProjectCarbonCreditsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      <Suspense fallback={<Loading />}>
+        <OrdersPage searchParams={await searchParams} />
+      </Suspense>
+    </div>
+  );
+}
+

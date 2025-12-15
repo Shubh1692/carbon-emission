@@ -1,11 +1,13 @@
 import CarbonCreditPanel from "@/components/carbon/CarbonCreditPanel";
+import Loading from "@/components/common/loading";
+import { Suspense } from "react";
 
-export default async function ProjectCarbonCreditPage({
+async function ProjectCarbonCreditPage({
   searchParams,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-
+  const sp = await searchParams;
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="mb-5">
@@ -17,7 +19,23 @@ export default async function ProjectCarbonCreditPage({
         </p>
       </div>
 
-      <CarbonCreditPanel initialSearchParams={searchParams} />
+      <CarbonCreditPanel initialSearchParams={sp} />
+    </div>
+  );
+}
+
+
+
+export default function ProjectCarbonCreditsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      <Suspense fallback={<Loading />}>
+        <ProjectCarbonCreditPage searchParams={searchParams} />
+      </Suspense>
     </div>
   );
 }

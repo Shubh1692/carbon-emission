@@ -1,14 +1,14 @@
 import CarbonCalculatorPanel from "@/components/carbon/CarbonCalculatorPanel";
+import Loading from "@/components/common/loading";
 import { UnitByType } from "@/lib/types/carbon-emission";
 import { getBaseUrl } from "@/lib/utils";
+import { Suspense } from "react";
 
-export default async function ProjectCarbonEmissionPage({
-  params,
+async function ProjectCarbonEmissionPage({
+  projectId,
 }: {
-  params: Promise<{ projectId: string }>;
+  projectId: string;
 }) {
-  const { projectId } = await params;
-
   if (!projectId) {
     return <div className="p-6">Missing project id in route.</div>;
   }
@@ -56,5 +56,25 @@ export default async function ProjectCarbonEmissionPage({
       dataVersion={dataVersion}
       batchId={savedActivities.batchId}
     />
+  );
+}
+
+
+
+export default async function Page({
+  params,
+}: {
+  params: { projectId: string };
+}) {
+  const { projectId } = await params;
+
+  if (!projectId) return <div className="p-6">Missing route params.</div>;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      <Suspense fallback={<Loading />}>
+        <ProjectCarbonEmissionPage projectId={projectId} />
+      </Suspense>
+    </div>
   );
 }
